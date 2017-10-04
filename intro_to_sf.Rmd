@@ -67,9 +67,14 @@ plot(west_shp_rgdal)
 
 ```{r read_shp_sf}
 ## Read in shapefile using sf
-system.time(west_shp_sf <- st_read(dsn = "shapefiles", layer="wc_regions")) 
+system.time(west_shp_sf <- st_read(dsn = "shapefiles", layer="wc_regions")) # dsn=where file is located
+west_shp_sf
 object.size(west_shp_sf)
-plot(west_shp_sf)      
+plot(west_shp_sf) 
+plot(west_shp_sf[1]) 
+# using spatial object as a data frame
+nrow(west_shp_sf)
+ncol(west_shp_sf)
 ```
 
 
@@ -98,9 +103,12 @@ It also easy to use the **dplyr** package on `sf` objects:
 `select()`
 
 ```{r select}
-
+library(dplyr)
 west_shp_sf %>%
   select(rgn, rgn_key, geometry)
+
+# west_shp_sf %>%
+#   dplyr::select(rgn, rgn_key, geometry)
 
 ```
 
@@ -108,8 +116,9 @@ west_shp_sf %>%
 
 ```{r filter}
 
-west_shp_sf %>%
+or <- west_shp_sf %>%
   filter(rgn == "Oregon")
+plot(or[1])
 
 ```
 
@@ -122,6 +131,7 @@ sf_out <- west_shp_sf %>%
          area_km2 = area_m2/1000000) #converting square meters to square kilometers
 
 sf_out
+plot(sf_out[5])
 ```
 
 
@@ -130,7 +140,7 @@ sf_out
 - The `st_transform()` can be used to transform coordinates
 
 ```{r}
-sf <- st_transform(sf_out, crs = '+proj=moll +ellps=WGS84') #reprojecting to a mollweide CRS
+sf <- st_transform(sf_out, crs = '+proj=moll +ellps=WGS84') #reprojecting to a mollweide CRS; st=spatial/temporal
 sf
 plot(sf[1])
 ```
@@ -152,6 +162,9 @@ st_write(sf_out, "shapefiles/wc_regions_clean.shp", driver = "ESRI Shapefile", d
 ```{r}
 
 #simplest plot
+library(devtools)
+#devtools::install_github('tidyverse/ggplot2')
+library(ggplot2)
 ggplot(sf_out) +
   geom_sf()
 
