@@ -48,7 +48,6 @@ Key information for optimal growth:
 - Net Primary Productivity between **2.6 and 3 mgC/m2/day**
 
 ```{r ,echo=FALSE,warning=F,message=F}
-
 knitr::opts_chunk$set(warning=FALSE, message=FALSE)
 options(scipen = 999)
 
@@ -129,6 +128,7 @@ library(dplyr)        #NOT spatial - this is a data wrangling library
 library(fasterize)
 library(ggplot2)
 
+select = dplyr::select #prefix function with dplyr
 ```  
 
 ***
@@ -223,7 +223,7 @@ Calculate the mean value per cell and then convert to Celsius by subtracting 273
 ```{r calc sst}
 
 # By adding 'filename=' R will directly save the raster into the defined file rather than memory
-sstAvg = calc(sstStack, fun=function(x){mean(x, na.rm=T)-273.15})#,filename='rasters/sstAvg.tif', overwrite=T) 
+sstAvg = calc(sstStack, fun=function(x){mean(x, na.rm=T)-273.15})#,filename='rasters/sstAvg.tif', overwrite=T) #celsius conversion
 
 plot(sstAvg, main = 'Mean Sea Surface Temperature (Celsius)')
 
@@ -235,6 +235,7 @@ A more compact way of doing multiple raster analysis is by using pipes...you can
 sstAvg = stack(sst_files)%>%
           calc(., fun=function(x){mean(x, na.rm=T)-273.15})
 
+sstAvg
 plot(sstAvg, main = 'Mean Sea Surface Temperature (Celsius)')
 ```
 
@@ -261,6 +262,7 @@ First look at the differences:
 
 sstAvg
 npp
+# different projections; npp in mollweide, sst not
 
 ```
 
@@ -312,8 +314,10 @@ Here you can see the difference:
 ```{r resample,message=F,warning=F,quiet=T,verbose=F,results=F}
 
 #include progress='text' in any raster function to see a progress bar as the function runs! This is one of my favorite R things!
-npp_res = resample(nppCrop, sstAvg, method='ngb')#,progress='text')
-npp_bil = resample(nppCrop, sstAvg, method='bilinear')#,progress='text')
+npp_res = resample(nppCrop, sstAvg, method='ngb',progress='text') #nearest neighbor
+npp_bil = resample(nppCrop, sstAvg, method='bilinear')#,progress='text') #bilinear
+
+#categorical vs continuous - cannot use bilinear for categorical data; generally use biliear for continuous
 
 par(mfrow=c(1,2))
 plot(npp_res);plot(npp_bil)
@@ -338,8 +342,8 @@ plot(npp_res)
 Check to see that we can use the SST and NPP data together now
 ```{r stack data}
 
-stack(npp_res, sstAvg) #No error and the stack has two layers so it looks good!
-
+s <- stack(npp_res, sstAvg) #No error and the stack has two layers so it looks good!
+plot(s)
 ```
 
 ***
@@ -372,14 +376,13 @@ You can set all values outside of our range to NA by subsetting - but don't over
 ```{r}
 
 sstPref = sstAvg #rename variable so we maintain the original sstAvg.
-sstPref[sstPref < 12 | sstPref > 18] <- NA #set all cells outside of our range to NA using brackets to subset
+sstPref[sstPref <= 12 | sstPref >= 18] <- NA #set all cells outside of our range to NA using brackets to subset
 plot(sstPref, main = 'Mean Sea Surface Temperature (Celsius)')
 
 ```
 
 Repeat the process with a new variable and set all suitable cells in SST to equal 1  
 ```{r}
-
 sstPref[!is.na(sstPref)] <- 1   #setting all cells that are not NA to 1
 plot(sstPref, col='coral', main = 'Areas with suitable SST')
 
@@ -397,9 +400,9 @@ Lumpsucker fish prefer water with a mean primary production of **between 2.6 and
 plot(npp_res)
 
 #define your range and the output value within the reclassify() function as the second argument 
-nppBin <- reclassify(npp_res, c(-Inf, 2.6, NA,
-                                2.6, 3, 1,
-                                3, Inf, NA))
+nppBin <- reclassify(npp_res, c(-Inf, 2.6, NA, # all values between -inf and 2.6=NA
+                                2.6, 3, 1,     # all values between 2.6 and 3 = 1
+                                3, Inf, NA))   # all values between 3 and inf = NA
 
 plot(nppBin, col='darkorchid2', main='Areas with Suitable NPP')
 
@@ -411,6 +414,7 @@ Now that we have these two binary layers, we can combine them using `overlay()` 
 ```{r}
 
 cells = overlay(sstPref, nppBin, fun=function(x, y){x*y})
+# cells <- sstPref * nppBin
 plot(cells, col='lightblue', main='Suitable Aquaculture Areas')
 plot(wc_rgns, add = T)
 
@@ -440,9 +444,9 @@ You can remove cells outside of your region by using the `mask()` function. Here
 ```{r mask}
 plot(cells, col='lightblue')
 
-wc_rgns_sp <- as(wc_rgns, 'Spatial');plot(wc_rgns_sp)
+wc_rgns_sp <- as(wc_rgns, 'Spatial');plot(wc_rgns_sp) # now can be used with the raster package
 
-cellsEEZ = mask(cells, wc_rgns_sp)
+cellsEEZ = mask(cells, wc_rgns_sp) # removes cells outside of wc_rgns raster
 
 plot(cellsEEZ,col='lightblue', main = 'Suitable Aquaculture Areas');plot(wc_rgns,add=T)
 ```
